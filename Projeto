@@ -1,0 +1,448 @@
+%-------------------------PROJETO FBIB------------------------------------%
+%-----------------------------Exercicio 1.--------------------------------%
+%Definir o diretorio
+folder_path = 'Slices';
+
+if ~isfolder('FilteredSlicesGaussian')
+    mkdir('FilteredSlicesGaussian');
+end
+
+if ~isfolder('FilteredSlicesMedian')
+    mkdir('FilteredSlicesMedian');
+end
+
+%Selecionar os ficheiros
+theFiles = dir(fullfile(folder_path, '*.tif'));
+
+%Escolher os valores de sigma a variar no filtro Gaussiano
+sigma_values = [0.5, 1, 2]; 
+
+%Para cada valor de sigma
+for sigma_index = 1:length(sigma_values)
+    %Dentro da pasta das imagens filtradas Gaussian tem uma pasta para as
+    %imagens filtradas consoante cada sigma
+    gaussian_sigma_folder = fullfile('FilteredSlicesGaussian', ['Sigma_', num2str(sigma_values(sigma_index))]);
+    if ~exist(gaussian_sigma_folder, 'dir')
+        mkdir(gaussian_sigma_folder); % Cria a pasta
+    end
+
+    %Para cada imagem, ocorre a filtracao e e gravada na pasta
+    %correspondente
+    for k = 1 : length(theFiles)
+        % Acesso a imagem
+        fullFileName = fullfile(folder_path, theFiles(k).name);
+        slice = imread(fullFileName);
+
+        % Filtrar com o Gaussian
+        filteredGauss = imgaussfilt(slice, sigma_values(sigma_index));
+        %Guardar
+        [~, fileName, fileExt] = fileparts(theFiles(k).name);
+        outputFileName_gauss = fullfile(gaussian_sigma_folder, [fileName, fileExt]);
+        imwrite(filteredGauss, outputFileName_gauss);
+    end
+end
+
+%Comparar Gauss
+figure('Position', [100, 100, 900, 300]); %[left, bottom, width, height]
+subplot(1,4,1);
+imshow('Slices\Channel1_Slice18.tif');
+title('Original Image');
+subplot(1,4,2);
+imshow('FilteredSlicesGaussian\Sigma_0.5\Channel1_Slice18.tif');
+title('Gaussian Filter, σ = 0.5');
+subplot(1,4,3);
+imshow('FilteredSlicesGaussian\Sigma_1\Channel1_Slice18.tif');
+title('Gaussian Filter, σ = 1');
+subplot(1,4,4);
+imshow('FilteredSlicesGaussian\Sigma_2\Channel1_Slice18.tif');
+title('Gaussian Filter, σ = 2');
+
+
+% Definir os valores do parametro a variar no filtro da mediana, o tamanho da matriz 
+neighborhood_sizes = {[3, 3], [5,5], [10, 10]}; 
+
+% Para cada valor definido 
+for size_index = 1:length(neighborhood_sizes)
+    % Dentro da pasta das imagens filtradas Meidan tem uma pasta para as
+    %imagens filtradas consoante cada valor do tamanho da matriz 
+    median_size_folder = fullfile('FilteredSlicesMedian', ['Neighborhood_', num2str(neighborhood_sizes{size_index}(1)) 'x' num2str(neighborhood_sizes{size_index}(2))]);
+    if ~exist(median_size_folder, 'dir')
+        mkdir(median_size_folder); % Cria se nao xistir
+    end
+
+    %Para cada imagem, ocorre a filtracao e e gravada na pasta correspondente
+    for k = 1 : length(theFiles)
+        % Acesso a imagem
+        fullFileName = fullfile(folder_path, theFiles(k).name);
+        slice = imread(fullFileName);
+
+        % Filtra com median filter
+        filteredMedian = medfilt2(slice, neighborhood_sizes{size_index});
+        % Guarda a imagem na pasta correspondente
+        [~, fileName, fileExt] = fileparts(theFiles(k).name);
+        outputFileName_median = fullfile(median_size_folder, [fileName, fileExt]);
+        imwrite(filteredMedian, outputFileName_median);
+    end
+end
+
+%Comparar mediana
+figure('Position', [100, 100, 900, 300]); %[left, bottom, width, height]
+subplot(1,4,1);
+imshow('Slices\Channel1_Slice18.tif');
+title('Original Image');
+subplot(1,4,2);
+imshow('FilteredSlicesMedian\Neighborhood_3x3\Channel1_Slice18.tif');
+title('Median Filter 3 by 3');
+subplot(1,4,3);
+imshow('FilteredSlicesMedian\Neighborhood_5x5\Channel1_Slice18.tif');
+title('Median Filter 5 by 5');
+subplot(1,4,4);
+imshow('FilteredSlicesMedian\Neighborhood_10x10\Channel1_Slice18.tif');
+title('Median Filter 10 by 10');
+
+
+%------------------Exercicio 2.---------------%
+%--------------------OTSU------------------------------%
+
+if ~isfolder('MedianImagesOtsu')
+    mkdir('MedianImagesOtsu');
+end
+
+folderPath = 'FilteredSlicesMedian\Neighborhood_3x3';
+image_files = dir(fullfile(folderPath, '*.tif'));
+
+for i = 1:length(image_files)
+    % ler a imagem
+    image_name = fullfile('FilteredSlicesMedian\Neighborhood_3x3', image_files(i).name);
+    original_image = imread(image_name);
+
+    low_in = 50;   % Example low input intensity value
+    high_in = 250; % Example high input intensity value
+    low_out = 0;   % Example low output intensity value
+    high_out = 255;% Example high output intensity value
+
+    % Apply imadjust with the specified parameters
+    adjusted_image = imadjust(original_image, [low_in/255, high_in/255], [low_out/255, high_out/255]);
+
+    [counts, binLocations] = imhist(adjusted_image);
+
+    thresholdLevel = otsuthresh(counts);
+
+    % Adjust the threshold level if necessary
+    adjustedThreshold = thresholdLevel * 2;
+
+    % Check if the adjusted threshold exceeds 1
+    if adjustedThreshold > 1
+        disp('Warning: Adjusted threshold level exceeds 1.');
+        adjustedThreshold = 1; % Set it to 1 to ensure it stays within the valid range
+    end
+
+    % Segment the image using the adjusted threshold
+    binaryImage = imbinarize(adjusted_image, adjustedThreshold);
+
+    % salvar imagem
+    [~, base_name, ~] = fileparts(image_name);
+    segmented_image_name_otsu = fullfile('MedianImagesOtsu', image_files(i).name);
+    imwrite(binaryImage, segmented_image_name_otsu);
+end
+
+%------------------THRESHOLD FIXO-------------------------%
+% Define the folder where your images are stored
+folderPath = 'FilteredSlicesMedian\Neighborhood_3x3';
+
+% Define a path for saving segmented images
+segmentedFolderPath = 'MedianImagesFixed';
+if ~exist(segmentedFolderPath, 'dir')
+    mkdir(segmentedFolderPath);
+end
+
+% List all TIF files in the folder
+imageFiles = dir(fullfile(folderPath, '*.tif'));
+
+% Loop through each image file
+for i = 1:length(imageFiles)
+
+    % Full path to the image
+    imagePath = fullfile(folderPath, imageFiles(i).name);
+    I = imread(imagePath);
+
+    low_in = 50;   % Example low input intensity value
+    high_in = 250; % Example high input intensity value
+    low_out = 0;   % Example low output intensity value
+    high_out = 255;% Example high output intensity value
+
+    % Apply imadjust with the specified parameters
+    adjusted_image = imadjust(I, [low_in/255, high_in/255], [low_out/255, high_out/255]);
+
+    % Convert to grayscale if it's a color image
+    if size(adjusted_image, 3) == 3
+        Igray = rgb2gray(adjusted_image);
+    else
+        Igray = adjusted_image; % The image is already grayscale
+    end
+
+    % Apply the fixed threshold of 127
+    BW_fixed = imbinarize(adjusted_image, 127 / 255); % Normalized for imbinarize
+
+    % Build the path for saving the segmented image
+    [~, fileName, ~] = fileparts(imageFiles(i).name);
+    segmentedImagePath = fullfile(segmentedFolderPath, image_files(i).name);
+
+    % Save the segmented image
+    imwrite(BW_fixed, segmentedImagePath);
+end
+
+%-----------------ACTIVE CONTOURS--------------------------%
+
+if ~isfolder('MedianImagesActiveContours')
+    mkdir('MedianImagesActiveContours');
+end
+% lista das imagens na pasta 'FilteredSlicesMedian'
+image_files = dir(fullfile('FilteredSlicesMedian\Neighborhood_3x3', '*.tif'));
+
+for i = 1:length(image_files)
+    % ler a imagem
+    image_name = fullfile('FilteredSlicesMedian\Neighborhood_3x3', image_files(i).name);
+    original_image = imread(image_name);
+
+    low_in = 50;   % Example low input intensity value
+    high_in = 250; % Example high input intensity value
+    low_out = 0;   % Example low output intensity value
+    high_out = 255;% Example high output intensity value
+
+    % Apply imadjust with the specified parameters
+    adjusted_image = imadjust(original_image, [low_in/255, high_in/255], [low_out/255, high_out/255]);
+
+    lowerBound = 100;
+    upperBound = 255;
+    mask = adjusted_image >= lowerBound & adjusted_image <= upperBound;
+    %mask = imfill(mask, 'holes');
+    mask = bwareaopen(mask, 100); % Remove coisas com menos de pixels
+    %imshow(mask)
+
+    bw = activecontour(adjusted_image, mask, 700); 
+
+    %salvar imagem
+    active_contours = fullfile('MedianImagesActiveContours', image_files(i).name);
+    imwrite(bw, active_contours);
+end
+
+%----------------------------Exercicio 3. Otsu ---------------------------------%
+% Define the folder where your binary mask images are stored
+folderPath = 'C:\Users\Beatriz\Desktop\FBIB\Projeto\MedianImagesOtsu';
+
+% Get a list of all files in the folder
+files = dir(fullfile(folderPath, '*.tif')); % adjust the extension based on your files
+
+% Assuming all images are the same size, read the first image to get dimensions
+sampleImage = imread(fullfile(folderPath, files(1).name));
+
+[height, width] = size(sampleImage);
+
+% Initialize a 3D array to hold all binary masks
+numSlices = numel(files);
+if isempty(files)
+    error('No .tif files found in the specified folder.');
+end
+binaryMasks3D = zeros(height, width, numSlices);
+
+% Read each binary mask and insert it into the 3D array
+for i = 1:numSlices
+    % Read the current slice
+    currentSlice = imread(fullfile(folderPath, files(i).name));
+
+    % Insert the slice into the 3D array
+    binaryMasks3D(:, :, i) = currentSlice;
+end
+
+% Visualize the 3D structure
+% Use isosurface for visualization
+figure;
+p = patch(isosurface(binaryMasks3D, 0.5));
+p.FaceColor = 'blue';
+p.EdgeColor = 'none';
+daspect([1 1 1]);
+view(3); % Adjust the view to 3D
+camlight; 
+lighting gouraud
+
+%----------------------------Exercicio 3. Fixed---------------------------------%
+% Define the folder where your binary mask images are stored
+folderPath = 'C:\Users\Beatriz\Desktop\FBIB\Projeto\MedianImagesFixed';
+
+% Get a list of all files in the folder
+files = dir(fullfile(folderPath, '*.tif')); % adjust the extension based on your files
+
+% Assuming all images are the same size, read the first image to get dimensions
+sampleImage = imread(fullfile(folderPath, files(1).name));
+[height, width] = size(sampleImage);
+
+% Initialize a 3D array to hold all binary masks
+numSlices = numel(files);
+binaryMasks3D = zeros(height, width, numSlices);
+
+% Read each binary mask and insert it into the 3D array
+for i = 1:numSlices
+    % Read the current slice
+    currentSlice = imread(fullfile(folderPath, files(i).name));
+
+    % Insert the slice into the 3D array
+    binaryMasks3D(:, :, i) = currentSlice;
+end
+
+% Visualize the 3D structure
+% Use isosurface for visualization
+figure;
+p = patch(isosurface(binaryMasks3D, 0.5));
+p.FaceColor = 'green';
+p.EdgeColor = 'none';
+daspect([1 1 1]);
+view(3); % Adjust the view to 3D
+camlight; 
+lighting gouraud
+%----------------------------Exercicio 3. Active Contours------------------%
+% Define the folder where your binary mask images are stored
+folderPath = 'C:\Users\Beatriz\Desktop\FBIB\Projeto\MedianImagesActiveContours';
+
+% Get a list of all files in the folder
+files = dir(fullfile(folderPath, '*.tif')); % adjust the extension based on your files
+
+% Assuming all images are the same size, read the first image to get dimensions
+sampleImage = imread(fullfile(folderPath, files(1).name));
+[height, width] = size(sampleImage);
+
+% Initialize a 3D array to hold all binary masks
+numSlices = numel(files);
+binaryMasks3D = zeros(height, width, numSlices);
+
+% Read each binary mask and insert it into the 3D array
+for i = 1:numSlices
+    % Read the current slice
+    currentSlice = imread(fullfile(folderPath, files(i).name));
+
+    % Insert the slice into the 3D array
+    binaryMasks3D(:, :, i) = currentSlice;
+end
+
+% Visualize the 3D structure
+% Use isosurface for visualization
+figure;
+p = patch(isosurface(binaryMasks3D, 0.5));
+p.FaceColor = 'red';
+p.EdgeColor = 'none';
+daspect([1 1 1]);
+view(3); % Adjust the view to 3D
+camlight; 
+lighting gouraud
+
+%------------------------Exercicio 4.----------------------------------%
+folderPath = 'C:\Users\Beatriz\Desktop\FBIB\Projeto\MedianImagesActiveContours\'; % Update this to your folder path
+imgFiles = dir(fullfile(folderPath, '*.tif')); % Adjust '*.tif' if using a different format
+numImages = length(imgFiles);
+
+binary_imgs = cell(1, numImages); % Preallocate cell array to store binary images
+
+for i = 1:numImages
+    % Load each image
+    img = imread(fullfile(folderPath, imgFiles(i).name));
+
+    % Convert to binary if necessary, adjust threshold as needed
+    % Example: binary_imgs{i} = imbinarize(rgb2gray(img));
+    binary_imgs{i} = img; % Direct assignment if images are already binary masks
+end
+
+% Assuming binary_imgs is filled with your binary mask images
+assembled_masks = cat(3, binary_imgs{:});
+assembled_masks = double(assembled_masks); % Convert to double for processing
+
+
+siz = size(assembled_masks, 3); % Number of masks
+fixed = assembled_masks(:, :, 1); % First mask as reference
+
+for i = 2:siz
+    moving = assembled_masks(:, :, i);
+    [optimizer, metric] = imregconfig('monomodal');
+    tform = imregtform(moving, fixed, 'rigid', optimizer, metric);
+    registered = imwarp(moving, tform, 'OutputView', imref2d(size(fixed)));
+    assembled_masks(:, :, i) = registered;
+end
+
+figure;
+for i = 1:siz
+    subplot(ceil(siz/5), 5, i); % Adjust subplot grid as needed
+    imshowpair(fixed, assembled_masks(:, :, i), 'Scaling', 'joint');
+    title(['Aligned Mask ', num2str(i)]);
+end
+
+% Define the folder where your binary mask images are stored
+folderPath = 'C:\Users\Beatriz\Desktop\FBIB\Projeto\AlignedImagesActiveContours';
+
+% Get a list of all files in the folder
+files = dir(fullfile(folderPath, '*.tif')); % adjust the extension based on your files
+
+% Assuming all images are the same size, read the first image to get dimensions
+sampleImage = imread(fullfile(folderPath, files(1).name));
+[height, width] = size(sampleImage);
+
+% Initialize a 3D array to hold all binary masks
+numSlices = numel(files);
+binaryMasks3D = zeros(height, width, numSlices);
+
+% Read each binary mask and insert it into the 3D array
+for i = 1:numSlices
+    % Read the current slice
+    currentSlice = imread(fullfile(folderPath, files(i).name));
+
+    % Insert the slice into the 3D array
+    binaryMasks3D(:, :, i) = currentSlice;
+end
+
+% Visualize the 3D structure
+% Use isosurface for visualization
+figure;
+p = patch(isosurface(binaryMasks3D, 0.5));
+p.FaceColor = 'red';
+p.EdgeColor = 'none';
+daspect([1 1 1]);
+view(3); % Adjust the view to 3D
+camlight; 
+lighting gouraud
+
+% %-----------------------Exercicio 5.------------------------------------%
+
+% Define the folder where your binary mask images are stored
+folderPath = 'C:\Users\Beatriz\Desktop\FBIB\Projeto\MedianImagesActiveContours';
+
+% Get a list of all files in the folder
+files = dir(fullfile(folderPath, '*.tif')); % adjust the extension based on your files
+
+% Assuming all images are the same size, read the first image to get dimensions
+sampleImage = imread(fullfile(folderPath, files(1).name));
+[height, width] = size(sampleImage);
+
+% Initialize a 3D array to hold all binary masks
+numSlices = numel(files);
+binaryMasks3D = zeros(height, width, numSlices);
+
+% Read each binary mask and insert it into the 3D array
+for i = 1:numSlices
+    % Read the current slice
+    currentSlice = imread(fullfile(folderPath, files(i).name));
+
+    % Insert the slice into the 3D array
+    binaryMasks3D(:, :, i) = currentSlice;
+end
+
+
+% Calculate the volume of the aggregates
+% This assumes each voxel represents a unit volume
+aggregateVolume = sum(binaryMasks3D(:) == 1);
+voxelVolume = 0.02930*0.02930*0.02930; %valores calcualdos baseados nas dimensoes da imagem
+
+% If you know the physical size of each voxel, multiply by that volume
+% For example, if each voxel represents a cube of 1mm^3:
+% physicalVoxelSize = 1; % mm^3
+% physicalAggregateVolume = aggregateVolume * physicalVoxelSize;
+realVolume = aggregateVolume* voxelVolume;
+% Display the volume
+fprintf('The volume of the aggregates is %d micrometers.\n', realVolume);
